@@ -1184,6 +1184,10 @@ jboolean equals(const char* name1, int len1, const char* name2, int len2) {
     return JNI_TRUE;
 }
 
+static jboolean endsWithSlash(const char *name, jsize name_len) {
+    return name_len > 0 && name[name_len - 1] == '/';
+}
+
 /*
  * Returns the zip entry corresponding to the specified name, or
  * NULL if not found.
@@ -1207,9 +1211,9 @@ ZIP_GetEntry2(jzfile *zip, const char *name, jint ulen, jboolean autoSlash)
 
     /* Check the cached entry first */
     ze = zip->cache;
-    if (ze != NULL && ze->nlen > 0) {
+    if (ze != NULL) {
         jsize nlen = ze->nlen;
-        if (autoSlash && ze->name[nlen - 1] == '/' && name[ulen - 1] != '/' ) {
+        if (autoSlash && endsWithSlash(ze->name, nlen) && !endsWithSlash(name, ulen)) {
             --nlen;
         }
         if (equals(ze->name, nlen, name, ulen)) {
@@ -1245,7 +1249,7 @@ ZIP_GetEntry2(jzfile *zip, const char *name, jint ulen, jboolean autoSlash)
                  * we keep searching.
                  */
                 ze = newEntry(zip, zc, ACCESS_RANDOM);
-                if (ze && (skip_slash == 0 || ( ze->nlen > 0 && ze->name[ze->nlen - 1] == '/')) &&
+                if (ze && (skip_slash == 0 || endsWithSlash(ze->name, ze->nlen)) &&
                         equals(ze->name, ze->nlen - skip_slash, name, ulen)) {
                     break;
                 }
@@ -1271,7 +1275,7 @@ ZIP_GetEntry2(jzfile *zip, const char *name, jint ulen, jboolean autoSlash)
         }
 
         /* Slash is already there? */
-        if (ulen > 0 && name[ulen-1] == '/') {
+        if (endsWithSlash(name, ulen)) {
             break;
         }
 
