@@ -33,6 +33,7 @@ import java.io.File;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -68,6 +69,7 @@ class ZipFile implements ZipConstants, Closeable {
 
     private static final int STORED = ZipEntry.STORED;
     private static final int DEFLATED = ZipEntry.DEFLATED;
+    private static final byte[] ASCII_SLASH = "/".getBytes();
 
     /**
      * Mode flag to open a zip file for reading.
@@ -172,6 +174,7 @@ class ZipFile implements ZipConstants, Closeable {
     }
 
     private ZipCoder zc;
+    private final boolean autoSlash;
 
     /**
      * Opens a new <code>ZipFile</code> to read from the specified
@@ -227,6 +230,7 @@ class ZipFile implements ZipConstants, Closeable {
         if (charset == null)
             throw new NullPointerException("charset is null");
         this.zc = ZipCoder.get(charset);
+        autoSlash = Arrays.equals(zc.getBytes("/"), ASCII_SLASH);
         long t0 = System.nanoTime();
         jzfile = open(name, mode, file.lastModified(), usemmap);
         sun.misc.PerfCounter.getZipFileOpenTime().addElapsedTimeFrom(t0);
@@ -321,14 +325,13 @@ class ZipFile implements ZipConstants, Closeable {
         synchronized (this) {
             ensureOpen();
             // getEntry searches for 'name' and 'name/' among entries,
-            // when the coder is UTF-8, so that the forward slash
-            // is encoded simply as 0x2F. Other coders may
+            // when the forward slash is encoded as 0x2F. Some coders
             // have different representations of the forward slash.
-            jzentry = getEntry(jzfile, zc.getBytes(name), zc.isUTF8());
-            if (jzentry == 0 && !zc.isUTF8() && !name.endsWith("/")) {
-                // If no entry has been found and the coder isn't UTF-8,
-                // and the name doesn't end with a forward slash,
-                // try appending it before encoding.
+            jzentry = getEntry(jzfile, zc.getBytes(name), autoSlash);
+            if (jzentry == 0 && !autoSlash && !name.endsWith("/")) {
+                // If no entry has been found, the slash isn't encoded
+                // as 0x2F, and the name doesn't end with a forward
+                // slash, try appending it before encoding.
                 jzentry = getEntry(jzfile, zc.getBytes(name + "/"), false);
             }
             if (jzentry != 0) {
